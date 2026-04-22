@@ -24,13 +24,16 @@ Future scope:
 
 ## Status
 
-Sprint 01 is in place.
+Sprint 02 is in place.
 
 Tracked today:
 
 - explicit state-root resolution from `root_dir`, `XDG_STATE_HOME`, or `HOME`
 - namespace and scope-aware root layout
 - document-path helpers and document resolution
+- text-focused state save, load, and remove helpers
+- `fgof-temp`-backed atomic replace semantics for saves
+- side-effect-free reads and removes when state roots are missing
 - POSIX root creation and existence checks
 - focused scaffold coverage in `fpm test`
 - CI on macOS and Ubuntu
@@ -53,6 +56,7 @@ Public types:
 - `state_options`
 - `state_root`
 - `state_document`
+- `state_text_result`
 
 Public constants:
 
@@ -68,7 +72,11 @@ Current public procedures:
 - `clear_state_options`
 - `clear_state_root`
 - `clear_state_document`
+- `clear_state_text_result`
 - `ensure_state_root`
+- `save_state_text`
+- `load_state_text`
+- `remove_state_document`
 - `state_relative_path_for_name`
 - `state_path_for_name`
 - `resolve_state_document`
@@ -82,6 +90,10 @@ Current semantics:
 - `create_root=.true.` creates state directories on demand; `create_root=.false.` requires the root to already exist
 - `state_relative_path_for_name()` and `state_path_for_name()` expose the stable document path shape for valid document names
 - `resolve_state_document()` returns the resolved root path, relative path, full path, and current presence state for a state document
+- `save_state_text()` writes exact Fortran character payloads with same-directory atomic replacement through `fgof-temp`
+- `load_state_text()` reads stored text back without creating missing roots as a side effect
+- `remove_state_document()` removes stored state files without creating missing roots as a side effect
+- missing documents report `not-found` for load or remove flows
 - document names, namespaces, and scopes must not be empty, contain `/`, or be `.` / `..`
 
 ## Build And Test
