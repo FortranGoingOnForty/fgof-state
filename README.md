@@ -24,7 +24,7 @@ Future scope:
 
 ## Status
 
-Sprint 02 is in place.
+Sprint 03 is in place.
 
 Tracked today:
 
@@ -34,6 +34,8 @@ Tracked today:
 - text-focused state save, load, and remove helpers
 - `fgof-temp`-backed atomic replace semantics for saves
 - side-effect-free reads and removes when state roots are missing
+- version-aware state envelopes with explicit mismatch handling
+- malformed or unsupported state payloads rejected as version errors
 - POSIX root creation and existence checks
 - focused scaffold coverage in `fpm test`
 - CI on macOS and Ubuntu
@@ -93,6 +95,10 @@ Current semantics:
 - `save_state_text()` writes exact Fortran character payloads with same-directory atomic replacement through `fgof-temp`
 - `load_state_text()` reads stored text back without creating missing roots as a side effect
 - `remove_state_document()` removes stored state files without creating missing roots as a side effect
+- `save_state_text()` stores a small internal format header plus a positive document version; the default version is `1`
+- `load_state_text()` surfaces the stored version on `state_text_result%document%version`
+- `load_state_text(..., expected_version=...)` reports `version` errors explicitly when the stored document version does not match the caller expectation
+- unsupported or malformed state payloads also report `version` errors instead of pretending to be valid text
 - missing documents report `not-found` for load or remove flows
 - document names, namespaces, and scopes must not be empty, contain `/`, or be `.` / `..`
 
