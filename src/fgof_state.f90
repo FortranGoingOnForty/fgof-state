@@ -41,6 +41,8 @@ module fgof_state
     state_root, &
     state_text_result
 
+  character(len=*), parameter :: STATE_FORMAT_MAGIC = "fgof-state/1"
+
 contains
 
   function clear_state_options() result(options)
@@ -75,6 +77,8 @@ contains
     type(state_text_result) :: result_value
 
     result_value%found = .false.
+    result_value%version_matched = .true.
+    result_value%expected_version = 0
     result_value%error_code = FGOF_STATE_OK
     result_value%document = clear_state_document()
     result_value%text = ""
@@ -189,36 +193,53 @@ contains
     document%error_message = ""
   end function resolve_state_document
 
-  function save_state_text(name, text, options) result(document)
+  function save_state_text(name, text, options, version) result(document)
     character(len=*), intent(in) :: name
     character(len=*), intent(in) :: text
     type(state_options), intent(in), optional :: options
+    integer, intent(in), optional :: version
     type(state_document) :: document
     type(write_result) :: write_outcome
+    integer :: local_version
+    character(len=:), allocatable :: encoded_text
 
     document = resolve_state_document(name, options)
     if (document%error_code /= FGOF_STATE_OK) return
 
-    write_outcome = atomic_write(document%path, text)
+    local_version = effective_state_version(version)
+    if (local_version <= 0) then
+      call set_document_error(document, FGOF_STATE_ERR_INVALID_OPTIONS, "state version must be positive")
+      return
+    end if
+
+    encoded_text = encode_state_text(text, local_version)
+    write_outcome = atomic_write(document%path, encoded_text)
     if (.not. write_outcome%completed) then
       call set_document_error(document, FGOF_STATE_ERR_IO, write_outcome%error_message)
       return
     end if
 
     document%present = .true.
+    document%version = local_version
     document%error_code = FGOF_STATE_OK
     document%error_message = ""
   end function save_state_text
 
-  function load_state_text(name, options) result(result_value)
+  function load_state_text(name, options, expected_version) result(result_value)
     character(len=*), intent(in) :: name
     type(state_options), intent(in), optional :: options
+    integer, intent(in), optional :: expected_version
     type(state_text_result) :: result_value
     type(state_document) :: document
+    integer :: local_expected_version
+    character(len=:), allocatable :: encoded_text
 
     result_value = clear_state_text_result()
     document = resolve_read_document(name, options)
     result_value%document = document
+
+    local_expected_version = expected_state_version(expected_version)
+    result_value%expected_version = local_expected_version
 
     if (document%error_code /= FGOF_STATE_OK) then
       result_value%error_code = document%error_code
@@ -232,10 +253,23 @@ contains
       return
     end if
 
-    call read_text_file(document%path, result_value%text, result_value%error_code, result_value%error_message)
+    call read_text_file(document%path, encoded_text, result_value%error_code, result_value%error_message)
     if (result_value%error_code /= FGOF_STATE_OK) return
 
+    call decode_state_text(encoded_text, result_value%document, result_value%text, &
+                           result_value%error_code, result_value%error_message)
+    if (result_value%error_code /= FGOF_STATE_OK) return
+
+    if (local_expected_version > 0 .and. result_value%document%version /= local_expected_version) then
+      result_value%version_matched = .false.
+      result_value%error_code = FGOF_STATE_ERR_VERSION
+      result_value%error_message = version_mismatch_message(local_expected_version, result_value%document%version)
+      result_value%text = ""
+      return
+    end if
+
     result_value%found = .true.
+    result_value%version_matched = .true.
     result_value%error_message = ""
   end function load_state_text
 
@@ -311,6 +345,20 @@ contains
     local_options%create_root = .false.
     document = resolve_state_document(name, local_options)
   end function resolve_read_document
+
+  integer function effective_state_version(version) result(local_version)
+    integer, intent(in), optional :: version
+
+    local_version = 1
+    if (present(version)) local_version = version
+  end function effective_state_version
+
+  integer function expected_state_version(version) result(local_version)
+    integer, intent(in), optional :: version
+
+    local_version = 0
+    if (present(version)) local_version = version
+  end function expected_state_version
 
   logical function validate_options(options, root) result(valid)
     type(state_options), intent(in) :: options
@@ -464,6 +512,83 @@ contains
     write(error_text, "(i0)") error_code
     message = context // " (errno=" // trim(error_text) // ")"
   end function errno_message
+
+  function encode_state_text(text, version) result(encoded_text)
+    character(len=*), intent(in) :: text
+    integer, intent(in) :: version
+    character(len=:), allocatable :: encoded_text
+    character(len=32) :: version_text
+
+    write(version_text, "(i0)") version
+    encoded_text = STATE_FORMAT_MAGIC // new_line("a") // trim(version_text) // new_line("a") // text
+  end function encode_state_text
+
+  subroutine decode_state_text(encoded_text, document, text, error_code, error_message)
+    character(len=*), intent(in) :: encoded_text
+    type(state_document), intent(inout) :: document
+    character(len=:), allocatable, intent(out) :: text
+    integer, intent(out) :: error_code
+    character(len=:), allocatable, intent(out) :: error_message
+    character(len=:), allocatable :: remainder
+    character(len=:), allocatable :: version_text
+    integer :: first_break
+    integer :: second_break
+    integer :: ios
+    character(len=256) :: iomsg
+
+    error_code = FGOF_STATE_OK
+    error_message = ""
+    text = ""
+
+    first_break = index(encoded_text, new_line("a"))
+    if (first_break <= 1) then
+      error_code = FGOF_STATE_ERR_VERSION
+      error_message = "state document has an invalid header"
+      return
+    end if
+
+    if (encoded_text(:first_break - 1) /= STATE_FORMAT_MAGIC) then
+      error_code = FGOF_STATE_ERR_VERSION
+      error_message = "state document format is not supported"
+      return
+    end if
+
+    remainder = encoded_text(first_break + 1:)
+    second_break = index(remainder, new_line("a"))
+    if (second_break <= 1) then
+      error_code = FGOF_STATE_ERR_VERSION
+      error_message = "state document is missing version metadata"
+      return
+    end if
+
+    version_text = remainder(:second_break - 1)
+    iomsg = ""
+    read(version_text, *, iostat=ios, iomsg=iomsg) document%version
+    if (ios /= 0 .or. document%version <= 0) then
+      error_code = FGOF_STATE_ERR_VERSION
+      error_message = io_status_message("state version metadata is invalid", ios, iomsg)
+      return
+    end if
+
+    if (first_break + second_break < len(encoded_text)) then
+      text = encoded_text(first_break + second_break + 1:)
+    else
+      text = ""
+    end if
+  end subroutine decode_state_text
+
+  function version_mismatch_message(expected_version, actual_version) result(message)
+    integer, intent(in) :: expected_version
+    integer, intent(in) :: actual_version
+    character(len=:), allocatable :: message
+    character(len=32) :: expected_text
+    character(len=32) :: actual_text
+
+    write(expected_text, "(i0)") expected_version
+    write(actual_text, "(i0)") actual_version
+    message = "state version mismatch: expected " // trim(expected_text) // &
+              ", found " // trim(actual_text)
+  end function version_mismatch_message
 
   subroutine read_text_file(path, text, error_code, error_message)
     character(len=*), intent(in) :: path
