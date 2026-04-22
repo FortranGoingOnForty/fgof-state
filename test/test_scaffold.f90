@@ -9,18 +9,23 @@ program test_scaffold
     clear_state_document, &
     clear_state_options, &
     clear_state_root, &
+    clear_state_text_result, &
     ensure_state_root, &
+    load_state_text, &
+    remove_state_document, &
     resolve_state_document, &
+    save_state_text, &
     state_backend_name, &
     state_error_name, &
     state_path_for_name, &
     state_relative_path_for_name
-  use fgof_state_types, only : state_document, state_options, state_root
+  use fgof_state_types, only : state_document, state_options, state_root, state_text_result
   implicit none
 
   type(state_options) :: options
   type(state_root) :: root
   type(state_document) :: document
+  type(state_text_result) :: text_result
   character(len=:), allocatable :: path
 
   options = clear_state_options()
@@ -44,6 +49,13 @@ program test_scaffold
   if (document%relative_path /= "") error stop "state document should start with an empty relative path"
   if (document%path /= "") error stop "state document should start with an empty path"
   if (document%error_message /= "") error stop "state document should start with an empty message"
+
+  text_result = clear_state_text_result()
+  if (text_result%found) error stop "state text result should start not found"
+  if (text_result%error_code /= FGOF_STATE_OK) error stop "state text result should start ok"
+  if (text_result%document%error_code /= FGOF_STATE_OK) error stop "state text result should carry a cleared document by default"
+  if (text_result%text /= "") error stop "state text result should start with empty text"
+  if (text_result%error_message /= "") error stop "state text result should start with an empty message"
 
   if (state_backend_name() /= "posix") error stop "backend helper should describe the current backend"
   if (state_error_name(FGOF_STATE_OK) /= "ok") error stop "error helper should map ok"
@@ -70,4 +82,11 @@ program test_scaffold
   if (document%root_path == "") error stop "document resolution should surface the resolved root path"
   if (document%relative_path /= "scaffold.txt") error stop "document resolution should surface the relative path"
   if (document%path == "") error stop "document resolution should surface the full path"
+
+  text_result = load_state_text("scaffold.txt")
+  if (.not. allocated(text_result%document%path)) error stop "load_state_text should return document metadata"
+  document = save_state_text("scaffold.txt", "hello")
+  if (document%error_code /= FGOF_STATE_OK) error stop "save_state_text should succeed for basic usage"
+  document = remove_state_document("scaffold.txt")
+  if (document%error_code /= FGOF_STATE_OK) error stop "remove_state_document should succeed after save"
 end program test_scaffold
