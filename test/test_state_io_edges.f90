@@ -62,8 +62,15 @@ program test_state_io_edges
   load_result = load_state_text("state.json", options)
   if (load_result%error_code /= FGOF_STATE_ERR_VERSION) error stop "unsupported document formats should report version errors"
 
+  options = clear_state_options()
+  options%root_dir = unique_root("invalid-save-version")
+  options%namespace = "demo-app"
   document = save_state_text("state.json", "hello", options, version=0)
   if (document%error_code /= FGOF_STATE_ERR_INVALID_OPTIONS) error stop "non-positive state versions should be rejected"
+  if (directory_exists_posix(options%root_dir)) error stop "invalid save versions should not create new roots"
+
+  load_result = load_state_text("state.json", options, expected_version=0)
+  if (load_result%error_code /= FGOF_STATE_ERR_INVALID_OPTIONS) error stop "non-positive expected versions should be rejected"
 
 contains
 

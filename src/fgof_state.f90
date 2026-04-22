@@ -203,14 +203,23 @@ contains
     integer :: local_version
     character(len=:), allocatable :: encoded_text
 
-    document = resolve_state_document(name, options)
-    if (document%error_code /= FGOF_STATE_OK) return
+    document = clear_state_document()
+    document%name = name
+
+    if (.not. valid_document_name(name)) then
+      call set_document_error(document, FGOF_STATE_ERR_INVALID_OPTIONS, &
+                              "document name must not be empty, contain '/', or be '.' or '..'")
+      return
+    end if
 
     local_version = effective_state_version(version)
-    if (local_version <= 0) then
+    if (present(version) .and. local_version <= 0) then
       call set_document_error(document, FGOF_STATE_ERR_INVALID_OPTIONS, "state version must be positive")
       return
     end if
+
+    document = resolve_state_document(name, options)
+    if (document%error_code /= FGOF_STATE_OK) return
 
     encoded_text = encode_state_text(text, local_version)
     write_outcome = atomic_write(document%path, encoded_text)
@@ -235,11 +244,17 @@ contains
     character(len=:), allocatable :: encoded_text
 
     result_value = clear_state_text_result()
-    document = resolve_read_document(name, options)
-    result_value%document = document
 
     local_expected_version = expected_state_version(expected_version)
     result_value%expected_version = local_expected_version
+    if (present(expected_version) .and. local_expected_version <= 0) then
+      result_value%error_code = FGOF_STATE_ERR_INVALID_OPTIONS
+      result_value%error_message = "expected_version must be positive"
+      return
+    end if
+
+    document = resolve_read_document(name, options)
+    result_value%document = document
 
     if (document%error_code /= FGOF_STATE_OK) then
       result_value%error_code = document%error_code
