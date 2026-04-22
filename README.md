@@ -37,6 +37,7 @@ Tracked today:
 - version-aware state envelopes with explicit mismatch handling
 - explicit `version_checked` / `version_matched` result semantics for version-aware loads
 - malformed or unsupported state payloads rejected as version errors
+- unreadable state files reported as `io` failures
 - invalid version arguments rejected before filesystem writes
 - tracked round-trip and version-mismatch examples
 - POSIX root creation and existence checks
@@ -104,6 +105,7 @@ Current semantics:
 - `load_state_text(..., expected_version=...)` reports `version` errors explicitly when the stored document version does not match the caller expectation
 - `state_text_result%version_matched` is only meaningful when `state_text_result%version_checked` is `.true.`
 - unsupported or malformed state payloads also report `version` errors instead of pretending to be valid text
+- unreadable state files report `io` errors during load
 - missing documents report `not-found` for load or remove flows
 - document names, namespaces, and scopes must not be empty, contain `/`, or be `.` / `..`
 

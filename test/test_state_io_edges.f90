@@ -74,6 +74,21 @@ program test_state_io_edges
   if (load_result%error_code /= FGOF_STATE_ERR_INVALID_OPTIONS) error stop "non-positive expected versions should be rejected"
   if (load_result%version_checked) error stop "invalid expected versions should not report a completed version check"
 
+  base_dir = unique_root("unreadable-state-file")
+  options = clear_state_options()
+  options%root_dir = base_dir
+  options%namespace = "demo-app"
+  document = save_state_text("state.json", "secret", options)
+  if (document%error_code /= FGOF_STATE_OK) error stop "save_state_text should succeed for unreadable-file setup"
+  call execute_command_line("chmod 000 " // quote_path(document%path), wait=.true.)
+
+  load_result = load_state_text("state.json", options)
+  if (load_result%error_code /= FGOF_STATE_ERR_IO) error stop "unreadable state files should report io errors"
+
+  call execute_command_line("chmod 600 " // quote_path(document%path), wait=.true.)
+  document = remove_state_document("state.json", options)
+  if (document%error_code /= FGOF_STATE_OK) error stop "cleanup should succeed after unreadable-file setup"
+
 contains
 
   function unique_root(label) result(path)
