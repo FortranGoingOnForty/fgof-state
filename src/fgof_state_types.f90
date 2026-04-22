@@ -28,6 +28,8 @@ module fgof_state_types
     integer :: version = 0
     integer :: error_code = FGOF_STATE_OK
     character(len=:), allocatable :: name
+    character(len=:), allocatable :: root_path
+    character(len=:), allocatable :: relative_path
     character(len=:), allocatable :: path
     character(len=:), allocatable :: error_message
   end type state_document
