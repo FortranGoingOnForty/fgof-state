@@ -1,7 +1,9 @@
 program test_state_io_edges
   use fgof_state, only : &
+    FGOF_STATE_ERR_INVALID_OPTIONS, &
     FGOF_STATE_ERR_IO, &
     FGOF_STATE_ERR_NOT_FOUND, &
+    FGOF_STATE_ERR_VERSION, &
     clear_state_options, &
     load_state_text, &
     remove_state_document, &
@@ -15,6 +17,7 @@ program test_state_io_edges
   type(state_document) :: document
   type(state_text_result) :: load_result
   character(len=:), allocatable :: base_dir
+  integer :: unit
 
   options = clear_state_options()
   options%create_root = .false.
@@ -45,6 +48,22 @@ program test_state_io_edges
 
   document = remove_state_document("state.json", options)
   if (document%error_code /= FGOF_STATE_ERR_IO) error stop "remove_state_document should reject directory collisions"
+
+  base_dir = unique_root("invalid-version")
+  options = clear_state_options()
+  options%root_dir = base_dir
+  options%namespace = "demo-app"
+  document = resolve_state_document("state.json", options)
+  if (document%error_code /= 0) error stop "document resolution should succeed for invalid-version setup"
+  open(newunit=unit, file=document%path, status="replace", action="write")
+  write(unit, "(a)", advance="no") "not-a-state-document"
+  close(unit)
+
+  load_result = load_state_text("state.json", options)
+  if (load_result%error_code /= FGOF_STATE_ERR_VERSION) error stop "unsupported document formats should report version errors"
+
+  document = save_state_text("state.json", "hello", options, version=0)
+  if (document%error_code /= FGOF_STATE_ERR_INVALID_OPTIONS) error stop "non-positive state versions should be rejected"
 
 contains
 

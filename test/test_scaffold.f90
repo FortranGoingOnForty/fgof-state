@@ -52,6 +52,8 @@ program test_scaffold
 
   text_result = clear_state_text_result()
   if (text_result%found) error stop "state text result should start not found"
+  if (.not. text_result%version_matched) error stop "state text result should start version-matched"
+  if (text_result%expected_version /= 0) error stop "state text result should start with no expected version"
   if (text_result%error_code /= FGOF_STATE_OK) error stop "state text result should start ok"
   if (text_result%document%error_code /= FGOF_STATE_OK) error stop "state text result should carry a cleared document by default"
   if (text_result%text /= "") error stop "state text result should start with empty text"
@@ -87,6 +89,7 @@ program test_scaffold
   if (.not. allocated(text_result%document%path)) error stop "load_state_text should return document metadata"
   document = save_state_text("scaffold.txt", "hello")
   if (document%error_code /= FGOF_STATE_OK) error stop "save_state_text should succeed for basic usage"
+  if (document%version /= 1) error stop "default save_state_text version should be one"
   document = remove_state_document("scaffold.txt")
   if (document%error_code /= FGOF_STATE_OK) error stop "remove_state_document should succeed after save"
 end program test_scaffold

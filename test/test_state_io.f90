@@ -1,5 +1,6 @@
 program test_state_io
   use fgof_state, only : &
+    FGOF_STATE_ERR_VERSION, &
     FGOF_STATE_OK, &
     clear_state_options, &
     load_state_text, &
@@ -20,14 +21,26 @@ program test_state_io
   options%namespace = "demo-app"
   options%scope = "workspace"
 
-  document = save_state_text("settings.json", "hello world", options)
+  document = save_state_text("settings.json", "hello world", options, 3)
   if (document%error_code /= FGOF_STATE_OK) error stop "save_state_text should succeed for valid options"
   if (.not. document%present) error stop "saved documents should be marked present"
+  if (document%version /= 3) error stop "save_state_text should preserve the requested version"
 
   load_result = load_state_text("settings.json", options)
   if (load_result%error_code /= FGOF_STATE_OK) error stop "load_state_text should succeed for saved documents"
   if (.not. load_result%found) error stop "load_state_text should mark saved documents as found"
   if (load_result%text /= "hello world") error stop "load_state_text should return the saved text"
+  if (load_result%document%version /= 3) error stop "load_state_text should return the stored version"
+
+  load_result = load_state_text("settings.json", options, expected_version=3)
+  if (load_result%error_code /= FGOF_STATE_OK) error stop "matching expected_version should succeed"
+  if (.not. load_result%version_matched) error stop "matching expected_version should report a version match"
+
+  load_result = load_state_text("settings.json", options, expected_version=2)
+  if (load_result%error_code /= FGOF_STATE_ERR_VERSION) error stop "mismatched expected_version should report version error"
+  if (load_result%version_matched) error stop "mismatched expected_version should report version mismatch"
+  if (load_result%document%version /= 3) error stop "version mismatch should still surface the stored version"
+  if (load_result%text /= "") error stop "version mismatch should not surface payload text yet"
 
   document = remove_state_document("settings.json", options)
   if (document%error_code /= FGOF_STATE_OK) error stop "remove_state_document should succeed for saved documents"
