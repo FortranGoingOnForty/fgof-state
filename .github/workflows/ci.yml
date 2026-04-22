@@ -58,3 +58,12 @@ jobs:
 
       - name: Run test suite
         run: fpm test --verbose
+
+      - name: Run examples
+        run: |
+          roundtrip_bin=$(find build -type f -path '*/example/state_roundtrip_demo' | head -n 1)
+          version_bin=$(find build -type f -path '*/example/state_version_demo' | head -n 1)
+          test -n "$roundtrip_bin"
+          test -n "$version_bin"
+          "$roundtrip_bin"
+          "$version_bin"
