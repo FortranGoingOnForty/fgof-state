@@ -77,6 +77,7 @@ contains
     type(state_text_result) :: result_value
 
     result_value%found = .false.
+    result_value%version_checked = .false.
     result_value%version_matched = .true.
     result_value%expected_version = 0
     result_value%error_code = FGOF_STATE_OK
@@ -252,6 +253,7 @@ contains
       result_value%error_message = "expected_version must be positive"
       return
     end if
+    result_value%version_checked = local_expected_version > 0
 
     document = resolve_read_document(name, options)
     result_value%document = document

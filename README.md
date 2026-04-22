@@ -35,6 +35,7 @@ Tracked today:
 - `fgof-temp`-backed atomic replace semantics for saves
 - side-effect-free reads and removes when state roots are missing
 - version-aware state envelopes with explicit mismatch handling
+- explicit `version_checked` / `version_matched` result semantics for version-aware loads
 - malformed or unsupported state payloads rejected as version errors
 - invalid version arguments rejected before filesystem writes
 - tracked round-trip and version-mismatch examples
@@ -99,7 +100,9 @@ Current semantics:
 - `remove_state_document()` removes stored state files without creating missing roots as a side effect
 - `save_state_text()` stores a small internal format header plus a positive document version; the default version is `1`
 - `load_state_text()` surfaces the stored version on `state_text_result%document%version`
+- `state_text_result%version_checked` tells callers whether `expected_version=` was actually applied for that load
 - `load_state_text(..., expected_version=...)` reports `version` errors explicitly when the stored document version does not match the caller expectation
+- `state_text_result%version_matched` is only meaningful when `state_text_result%version_checked` is `.true.`
 - unsupported or malformed state payloads also report `version` errors instead of pretending to be valid text
 - missing documents report `not-found` for load or remove flows
 - document names, namespaces, and scopes must not be empty, contain `/`, or be `.` / `..`

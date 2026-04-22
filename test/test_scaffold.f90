@@ -52,6 +52,7 @@ program test_scaffold
 
   text_result = clear_state_text_result()
   if (text_result%found) error stop "state text result should start not found"
+  if (text_result%version_checked) error stop "state text result should start with no version check applied"
   if (.not. text_result%version_matched) error stop "state text result should start version-matched"
   if (text_result%expected_version /= 0) error stop "state text result should start with no expected version"
   if (text_result%error_code /= FGOF_STATE_OK) error stop "state text result should start ok"
@@ -87,6 +88,7 @@ program test_scaffold
 
   text_result = load_state_text("scaffold.txt")
   if (.not. allocated(text_result%document%path)) error stop "load_state_text should return document metadata"
+  if (text_result%version_checked) error stop "plain load_state_text should not report a version check"
   document = save_state_text("scaffold.txt", "hello")
   if (document%error_code /= FGOF_STATE_OK) error stop "save_state_text should succeed for basic usage"
   if (document%version /= 1) error stop "default save_state_text version should be one"

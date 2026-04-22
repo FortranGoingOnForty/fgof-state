@@ -36,6 +36,7 @@ module fgof_state_types
 
   type, public :: state_text_result
     logical :: found = .false.
+    logical :: version_checked = .false.
     logical :: version_matched = .true.
     integer :: expected_version = 0
     integer :: error_code = FGOF_STATE_OK

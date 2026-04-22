@@ -3,6 +3,7 @@ program test_state_io_edges
     FGOF_STATE_ERR_INVALID_OPTIONS, &
     FGOF_STATE_ERR_IO, &
     FGOF_STATE_ERR_NOT_FOUND, &
+    FGOF_STATE_OK, &
     FGOF_STATE_ERR_VERSION, &
     clear_state_options, &
     load_state_text, &
@@ -71,6 +72,7 @@ program test_state_io_edges
 
   load_result = load_state_text("state.json", options, expected_version=0)
   if (load_result%error_code /= FGOF_STATE_ERR_INVALID_OPTIONS) error stop "non-positive expected versions should be rejected"
+  if (load_result%version_checked) error stop "invalid expected versions should not report a completed version check"
 
 contains
 

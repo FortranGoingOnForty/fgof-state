@@ -29,15 +29,18 @@ program test_state_io
   load_result = load_state_text("settings.json", options)
   if (load_result%error_code /= FGOF_STATE_OK) error stop "load_state_text should succeed for saved documents"
   if (.not. load_result%found) error stop "load_state_text should mark saved documents as found"
+  if (load_result%version_checked) error stop "load_state_text without expected_version should not report a version check"
   if (load_result%text /= "hello world") error stop "load_state_text should return the saved text"
   if (load_result%document%version /= 3) error stop "load_state_text should return the stored version"
 
   load_result = load_state_text("settings.json", options, expected_version=3)
   if (load_result%error_code /= FGOF_STATE_OK) error stop "matching expected_version should succeed"
+  if (.not. load_result%version_checked) error stop "matching expected_version should report that a version check happened"
   if (.not. load_result%version_matched) error stop "matching expected_version should report a version match"
 
   load_result = load_state_text("settings.json", options, expected_version=2)
   if (load_result%error_code /= FGOF_STATE_ERR_VERSION) error stop "mismatched expected_version should report version error"
+  if (.not. load_result%version_checked) error stop "mismatched expected_version should still report that a version check happened"
   if (load_result%version_matched) error stop "mismatched expected_version should report version mismatch"
   if (load_result%document%version /= 3) error stop "version mismatch should still surface the stored version"
   if (load_result%text /= "") error stop "version mismatch should not surface payload text yet"
