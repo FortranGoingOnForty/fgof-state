@@ -3,7 +3,7 @@ module fgof_state_posix
   implicit none
   private
 
-  public :: directory_exists_posix, ensure_directory_posix, path_exists_posix
+  public :: directory_exists_posix, ensure_directory_posix, path_exists_posix, remove_file_posix
 
   interface
     integer(c_int) function fgof_state_directory_exists(path) bind(c, name="fgof_state_directory_exists")
@@ -21,6 +21,12 @@ module fgof_state_posix
       import :: c_char, c_int
       character(kind=c_char), intent(in) :: path(*)
     end function fgof_state_path_exists
+
+    integer(c_int) function fgof_state_remove_file(path, error_code) bind(c, name="fgof_state_remove_file")
+      import :: c_char, c_int
+      character(kind=c_char), intent(in) :: path(*)
+      integer(c_int), intent(out) :: error_code
+    end function fgof_state_remove_file
   end interface
 
 contains
@@ -67,6 +73,23 @@ contains
     success = (fgof_state_ensure_directory(c_path, c_error) /= 0_c_int)
     error_code = c_error
   end function ensure_directory_posix
+
+  logical function remove_file_posix(path, error_code) result(success)
+    character(len=*), intent(in) :: path
+    integer, intent(out) :: error_code
+    character(kind=c_char), allocatable :: c_path(:)
+    integer(c_int) :: c_error
+
+    if (len(path) == 0) then
+      error_code = 22
+      success = .false.
+      return
+    end if
+
+    c_path = to_c_string(path)
+    success = (fgof_state_remove_file(c_path, c_error) /= 0_c_int)
+    error_code = c_error
+  end function remove_file_posix
 
   function to_c_string(text) result(c_text)
     character(len=*), intent(in) :: text

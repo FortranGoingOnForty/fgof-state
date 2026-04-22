@@ -1,5 +1,7 @@
 module fgof_state
-  use fgof_state_posix, only : directory_exists_posix, ensure_directory_posix, path_exists_posix
+  use fgof_state_posix, only : directory_exists_posix, ensure_directory_posix, path_exists_posix, remove_file_posix
+  use fgof_temp, only : atomic_write
+  use fgof_temp_types, only : write_result
   use fgof_state_types, only : &
     FGOF_STATE_ERR_INTERNAL, &
     FGOF_STATE_ERR_INVALID_OPTIONS, &
@@ -9,7 +11,8 @@ module fgof_state
     FGOF_STATE_OK, &
     state_document, &
     state_options, &
-    state_root
+    state_root, &
+    state_text_result
   implicit none
   private
 
@@ -23,15 +26,20 @@ module fgof_state
     clear_state_document, &
     clear_state_options, &
     clear_state_root, &
+    clear_state_text_result, &
     ensure_state_root, &
+    load_state_text, &
+    remove_state_document, &
     resolve_state_document, &
+    save_state_text, &
     state_backend_name, &
     state_document, &
     state_error_name, &
     state_options, &
     state_path_for_name, &
     state_relative_path_for_name, &
-    state_root
+    state_root, &
+    state_text_result
 
 contains
 
@@ -62,6 +70,16 @@ contains
     document%path = ""
     document%error_message = ""
   end function clear_state_document
+
+  function clear_state_text_result() result(result_value)
+    type(state_text_result) :: result_value
+
+    result_value%found = .false.
+    result_value%error_code = FGOF_STATE_OK
+    result_value%document = clear_state_document()
+    result_value%text = ""
+    result_value%error_message = ""
+  end function clear_state_text_result
 
   function ensure_state_root(options) result(root)
     type(state_options), intent(in), optional :: options
@@ -171,6 +189,82 @@ contains
     document%error_message = ""
   end function resolve_state_document
 
+  function save_state_text(name, text, options) result(document)
+    character(len=*), intent(in) :: name
+    character(len=*), intent(in) :: text
+    type(state_options), intent(in), optional :: options
+    type(state_document) :: document
+    type(write_result) :: write_outcome
+
+    document = resolve_state_document(name, options)
+    if (document%error_code /= FGOF_STATE_OK) return
+
+    write_outcome = atomic_write(document%path, text)
+    if (.not. write_outcome%completed) then
+      call set_document_error(document, FGOF_STATE_ERR_IO, write_outcome%error_message)
+      return
+    end if
+
+    document%present = .true.
+    document%error_code = FGOF_STATE_OK
+    document%error_message = ""
+  end function save_state_text
+
+  function load_state_text(name, options) result(result_value)
+    character(len=*), intent(in) :: name
+    type(state_options), intent(in), optional :: options
+    type(state_text_result) :: result_value
+    type(state_document) :: document
+
+    result_value = clear_state_text_result()
+    document = resolve_read_document(name, options)
+    result_value%document = document
+
+    if (document%error_code /= FGOF_STATE_OK) then
+      result_value%error_code = document%error_code
+      result_value%error_message = document%error_message
+      return
+    end if
+
+    if (.not. document%present) then
+      result_value%error_code = FGOF_STATE_ERR_NOT_FOUND
+      result_value%error_message = "state document not found"
+      return
+    end if
+
+    call read_text_file(document%path, result_value%text, result_value%error_code, result_value%error_message)
+    if (result_value%error_code /= FGOF_STATE_OK) return
+
+    result_value%found = .true.
+    result_value%error_message = ""
+  end function load_state_text
+
+  function remove_state_document(name, options) result(document)
+    character(len=*), intent(in) :: name
+    type(state_options), intent(in), optional :: options
+    type(state_document) :: document
+    integer :: sys_errno
+    logical :: success
+
+    document = resolve_read_document(name, options)
+    if (document%error_code /= FGOF_STATE_OK) return
+
+    if (.not. document%present) then
+      call set_document_error(document, FGOF_STATE_ERR_NOT_FOUND, "state document not found")
+      return
+    end if
+
+    success = remove_file_posix(document%path, sys_errno)
+    if (.not. success) then
+      call set_document_error(document, FGOF_STATE_ERR_IO, errno_message("state document removal failed", sys_errno))
+      return
+    end if
+
+    document%present = .false.
+    document%error_code = FGOF_STATE_OK
+    document%error_message = ""
+  end function remove_state_document
+
   function state_backend_name() result(name)
     character(len=:), allocatable :: name
 
@@ -206,6 +300,17 @@ contains
     local_options = clear_state_options()
     if (present(options)) local_options = options
   end function merged_options
+
+  function resolve_read_document(name, options) result(document)
+    character(len=*), intent(in) :: name
+    type(state_options), intent(in), optional :: options
+    type(state_document) :: document
+    type(state_options) :: local_options
+
+    local_options = merged_options(options)
+    local_options%create_root = .false.
+    document = resolve_state_document(name, local_options)
+  end function resolve_read_document
 
   logical function validate_options(options, root) result(valid)
     type(state_options), intent(in) :: options
@@ -359,5 +464,74 @@ contains
     write(error_text, "(i0)") error_code
     message = context // " (errno=" // trim(error_text) // ")"
   end function errno_message
+
+  subroutine read_text_file(path, text, error_code, error_message)
+    character(len=*), intent(in) :: path
+    character(len=:), allocatable, intent(out) :: text
+    integer, intent(out) :: error_code
+    character(len=:), allocatable, intent(out) :: error_message
+    integer :: file_size
+    integer :: ios
+    integer :: unit
+    character(len=256) :: iomsg
+
+    error_code = FGOF_STATE_OK
+    error_message = ""
+
+    inquire(file=path, size=file_size, iostat=ios, iomsg=iomsg)
+    if (ios /= 0) then
+      error_code = FGOF_STATE_ERR_IO
+      error_message = io_status_message("state read failed while sizing file", ios, iomsg)
+      text = ""
+      return
+    end if
+
+    allocate(character(len=file_size) :: text)
+    if (file_size == 0) return
+
+    iomsg = ""
+    open(newunit=unit, file=path, status="old", access="stream", form="unformatted", &
+         action="read", iostat=ios, iomsg=iomsg)
+    if (ios /= 0) then
+      error_code = FGOF_STATE_ERR_IO
+      error_message = io_status_message("state read failed while opening file", ios, iomsg)
+      deallocate(text)
+      text = ""
+      return
+    end if
+
+    iomsg = ""
+    read(unit, iostat=ios, iomsg=iomsg) text
+    if (ios /= 0) then
+      close(unit)
+      error_code = FGOF_STATE_ERR_IO
+      error_message = io_status_message("state read failed while reading file", ios, iomsg)
+      deallocate(text)
+      text = ""
+      return
+    end if
+
+    iomsg = ""
+    close(unit, iostat=ios, iomsg=iomsg)
+    if (ios /= 0) then
+      error_code = FGOF_STATE_ERR_IO
+      error_message = io_status_message("state read failed while closing file", ios, iomsg)
+    end if
+  end subroutine read_text_file
+
+  function io_status_message(context, io_status, io_message) result(message)
+    character(len=*), intent(in) :: context
+    integer, intent(in) :: io_status
+    character(len=*), intent(in) :: io_message
+    character(len=:), allocatable :: message
+    character(len=32) :: status_text
+
+    write(status_text, "(i0)") io_status
+    if (len_trim(io_message) > 0) then
+      message = context // " (iostat=" // trim(status_text) // ", message=" // trim(io_message) // ")"
+    else
+      message = context // " (iostat=" // trim(status_text) // ")"
+    end if
+  end function io_status_message
 
 end module fgof_state

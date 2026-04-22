@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -13,6 +14,28 @@ int fgof_state_path_exists(const char *path) {
     }
 
     return stat(path, &st) == 0 ? 1 : 0;
+}
+
+int fgof_state_remove_file(const char *path, int *error_code) {
+    if (error_code != NULL) {
+        *error_code = 0;
+    }
+
+    if (path == NULL || path[0] == '\0') {
+        if (error_code != NULL) {
+            *error_code = EINVAL;
+        }
+        return 0;
+    }
+
+    if (remove(path) != 0) {
+        if (error_code != NULL) {
+            *error_code = errno;
+        }
+        return 0;
+    }
+
+    return 1;
 }
 
 int fgof_state_directory_exists(const char *path) {

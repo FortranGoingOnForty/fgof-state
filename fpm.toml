@@ -18,3 +18,6 @@ library = true
 implicit-typing = false
 implicit-external = false
 source-form = "free"
+
+[dependencies]
+fgof-temp = { git = "https://github.com/FortranGoingOnForty/fgof-temp.git", tag = "v0.1.0" }

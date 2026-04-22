@@ -34,4 +34,12 @@ module fgof_state_types
     character(len=:), allocatable :: error_message
   end type state_document
 
+  type, public :: state_text_result
+    logical :: found = .false.
+    integer :: error_code = FGOF_STATE_OK
+    type(state_document) :: document
+    character(len=:), allocatable :: text
+    character(len=:), allocatable :: error_message
+  end type state_text_result
+
 end module fgof_state_types
