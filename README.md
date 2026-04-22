@@ -24,12 +24,14 @@ Future scope:
 
 ## Status
 
-Scaffold is in place.
+Sprint 01 is in place.
 
 Tracked today:
 
-- starter state option, root, and document types
-- placeholder backend and error helpers
+- explicit state-root resolution from `root_dir`, `XDG_STATE_HOME`, or `HOME`
+- namespace and scope-aware root layout
+- document-path helpers and document resolution
+- POSIX root creation and existence checks
 - focused scaffold coverage in `fpm test`
 - CI on macOS and Ubuntu
 
@@ -66,8 +68,21 @@ Current public procedures:
 - `clear_state_options`
 - `clear_state_root`
 - `clear_state_document`
+- `ensure_state_root`
+- `state_relative_path_for_name`
+- `state_path_for_name`
+- `resolve_state_document`
 - `state_backend_name`
 - `state_error_name`
+
+Current semantics:
+
+- `ensure_state_root()` resolves from explicit `root_dir`, or from `XDG_STATE_HOME` / `HOME` when `root_dir` is absent
+- explicit `namespace` and `scope` values extend the resolved root path as validated path segments
+- `create_root=.true.` creates state directories on demand; `create_root=.false.` requires the root to already exist
+- `state_relative_path_for_name()` and `state_path_for_name()` expose the stable document path shape for valid document names
+- `resolve_state_document()` returns the resolved root path, relative path, full path, and current presence state for a state document
+- document names, namespaces, and scopes must not be empty, contain `/`, or be `.` / `..`
 
 ## Build And Test
 
