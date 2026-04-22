@@ -24,7 +24,7 @@ Future scope:
 
 ## Status
 
-Sprint 03 is in place.
+Sprint 04 is in place.
 
 Tracked today:
 
@@ -36,9 +36,11 @@ Tracked today:
 - side-effect-free reads and removes when state roots are missing
 - version-aware state envelopes with explicit mismatch handling
 - malformed or unsupported state payloads rejected as version errors
+- invalid version arguments rejected before filesystem writes
+- tracked round-trip and version-mismatch examples
 - POSIX root creation and existence checks
 - focused scaffold coverage in `fpm test`
-- CI on macOS and Ubuntu
+- CI on macOS and Ubuntu, including direct example execution
 
 ## Why Use It
 
@@ -109,6 +111,11 @@ fpm test
 ```
 
 That is the baseline verification command locally and in CI.
+
+Tracked examples:
+
+- [state_roundtrip_demo.f90](example/state_roundtrip_demo.f90)
+- [state_version_demo.f90](example/state_version_demo.f90)
 
 ## Supported Platforms
 
