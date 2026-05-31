@@ -185,9 +185,11 @@ contains
     document%relative_path = state_relative_path_for_name(name)
     document%path = state_path_for_name(root%path, name)
     document%present = path_exists_posix(document%path)
-    if (document%present .and. directory_exists_posix(document%path)) then
-      call set_document_error(document, FGOF_STATE_ERR_IO, "state document path exists but is a directory")
-      return
+    if (document%present) then
+      if (directory_exists_posix(document%path)) then
+        call set_document_error(document, FGOF_STATE_ERR_IO, "state document path exists but is a directory")
+        return
+      end if
     end if
 
     document%error_code = FGOF_STATE_OK

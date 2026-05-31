@@ -40,6 +40,7 @@ contains
       return
     end if
 
+    allocate(c_path(0))
     c_path = to_c_string(path)
     exists = (fgof_state_path_exists(c_path) /= 0_c_int)
   end function path_exists_posix
@@ -53,6 +54,7 @@ contains
       return
     end if
 
+    allocate(c_path(0))
     c_path = to_c_string(path)
     exists = (fgof_state_directory_exists(c_path) /= 0_c_int)
   end function directory_exists_posix
@@ -69,6 +71,7 @@ contains
       return
     end if
 
+    allocate(c_path(0))
     c_path = to_c_string(path)
     success = (fgof_state_ensure_directory(c_path, c_error) /= 0_c_int)
     error_code = c_error
@@ -86,6 +89,7 @@ contains
       return
     end if
 
+    allocate(c_path(0))
     c_path = to_c_string(path)
     success = (fgof_state_remove_file(c_path, c_error) /= 0_c_int)
     error_code = c_error
